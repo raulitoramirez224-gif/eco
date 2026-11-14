@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Lectura en butaca</title>
+<style>
+  :root {
+    --bg:#f6f1e7; --paper:#fffaf0; --ink:#2b2622; --muted:#7a6f63; --accent:#a4542a; --line:#e4d9c6;
+    --fs:19px; --lh:1.7;
+  }
+  :root[data-theme="noche"] { --bg:#0f1115; --paper:#171a21; --ink:#d9d4cb; --muted:#8d8a84; --accent:#e39a6a; --line:#2a2e37; }
+  :root[data-theme="dia"]   { --bg:#f2f3f5; --paper:#ffffff; --ink:#1d1f23; --muted:#6b7078; --accent:#2c6bc4; --line:#e2e5ea; }
+  * { box-sizing:border-box; }
+  html { -webkit-text-size-adjust:100%; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:Georgia,"Iowan Old Style","Palatino Linotype",serif;
+    transition:background .25s,color .25s; -webkit-tap-highlight-color:transparent; }
+  button { font:inherit; color:inherit; cursor:pointer; }
+  .ui { font-family:system-ui,-apple-system,"Segoe UI",sans-serif; }
+
+  header.top { position:sticky; top:0; z-index:10; background:var(--bg); border-bottom:1px solid var(--line);
+    padding:calc(10px + env(safe-area-inset-top)) 16px 10px; display:flex; align-items:center; gap:10px; }
+  header.top h1 { margin:0; font-size:17px; font-weight:700; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .icon { background:none; border:1px solid var(--line); border-radius:10px; min-width:40px; height:40px; padding:0 10px; font-size:15px; }
+  #bar { position:absolute; left:0; bottom:-1px; height:3px; width:0; background:var(--accent); transition:width .1s; }
+
+  main { max-width:680px; margin:0 auto; padding:20px 16px calc(60px + env(safe-area-inset-bottom)); }
+
+  /* Estantería */
+  .intro { text-align:center; margin:18px 0 26px; }
+  .intro .chair { font-size:44px; line-height:1; }
+  .intro h2 { margin:10px 0 6px; font-size:28px; }
+  .intro p { margin:0 auto; max-width:440px; color:var(--muted); font-style:italic; line-height:1.5; }
+  .card { display:block; width:100%; text-align:left; background:var(--paper); border:1px solid var(--line); border-radius:14px;
+    padding:18px; margin:0 0 14px; transition:transform .12s; }
+  .card:active { transform:scale(.985); }
+  .card h3 { margin:0 0 6px; font-size:21px; }
+  .card p { margin:0 0 10px; color:var(--muted); line-height:1.45; }
+  .meta { font-size:13px; color:var(--muted); display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+  .tag { background:var(--bg); border:1px solid var(--line); border-radius:20px; padding:2px 10px; }
+  .done { color:var(--accent); font-weight:600; }
+
+  /* Lector */
+  article h2 { font-size:clamp(26px,7vw,34px); line-height:1.2; margin:14px 0 6px; }
+  article .sub { color:var(--muted); font-style:italic; margin:0 0 28px; }
+  article .body p { font-size:var(--fs); line-height:var(--lh); margin:0 0 1.1em; hyphens:auto; -webkit-hyphens:auto; }
+  article .body p:first-child::first-letter { float:left; font-size:3.4em; line-height:.85; padding:.08em .08em 0 0; color:var(--accent); }
+  article .body .sep { text-align:center; color:var(--muted); letter-spacing:.6em; margin:1.6em 0; }
+  .fin { text-align:center; margin:36px 0 10px; color:var(--muted); }
+  .nav { display:flex; gap:10px; margin-top:20px; }
+  .nav button { flex:1; padding:14px; border-radius:12px; border:1px solid var(--line); background:var(--paper); font-size:15px; }
+
+  /* Panel de ajustes */
+  #panel { position:fixed; left:0; right:0; bottom:0; z-index:20; background:var(--paper); border-top:1px solid var(--line);
+    border-radius:18px 18px 0 0; padding:18px 16px calc(18px + env(safe-area-inset-bottom)); transform:translateY(105%);
+    transition:transform .25s ease; box-shadow:0 -10px 30px rgba(0,0,0,.15); max-width:680px; margin:0 auto; }
+  #panel.open { transform:none; }
+  #panel .row { display:flex; align-items:center; gap:10px; margin:0 0 14px; }
+  #panel .row > span { width:90px; font-size:14px; color:var(--muted); }
+  #panel .opts { display:flex; gap:8px; flex:1; }
+  #panel .opts button { flex:1; height:42px; border-radius:10px; border:1px solid var(--line); background:var(--bg); font-size:15px; }
+  #panel .opts button.on { border-color:var(--accent); color:var(--accent); font-weight:700; }
+  #shade { position:fixed; inset:0; z-index:15; background:rgba(0,0,0,.25); display:none; }
+  #shade.on { display:block; }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+<header class="top ui">
+  <button class="icon hidden" id="back" aria-label="Volver a la estantería">←</button>
+  <h1 id="ttl">Lectura en butaca</h1>
+  <button class="icon" id="opts" aria-label="Ajustes de lectura">Aa</button>
+  <div id="bar"></div>
+</header>
+
+<main>
+  <section id="shelf">
+    <div class="intro">
+      <div class="chair" aria-hidden="true">🛋️</div>
+      <h2>Lectura en butaca</h2>
+      <p>Pausa el juego, acomódate y lee un relato corto. Historias del mismo universo, sin disparos.</p>
+    </div>
+    <div id="list"></div>
+  </section>
+
+  <article id="reader" class="hidden">
+    <h2 id="rTitle"></h2>
+    <p class="sub" id="rSub"></p>
+    <div class="body" id="rBody"></div>
+    <p class="fin">— Fin —</p>
+    <div class="nav ui">
+      <button id="toShelf">Estantería</button>
+      <button id="next">Siguiente relato →</button>
+    </div>
+  </article>
+</main>
+
+<div id="shade"></div>
+<div id="panel" class="ui" role="dialog" aria-label="Ajustes de lectura">
+  <div class="row"><span>Tamaño</span><div class="opts" data-k="fs">
+    <button data-v="16px">A−</button><button data-v="19px">A</button><button data-v="22px">A+</button><button data-v="26px">A++</button></div></div>
+  <div class="row"><span>Interlineado</span><div class="opts" data-k="lh">
+    <button data-v="1.45">Junto</button><button data-v="1.7">Normal</button><button data-v="2">Amplio</button></div></div>
+  <div class="row"><span>Tema</span><div class="opts" data-k="theme">
+    <button data-v="sepia">Sepia</button><button data-v="dia">Día</button><button data-v="noche">Noche</button></div></div>
+  <div class="row"><span>Letra</span><div class="opts" data-k="font">
+    <button data-v="serif">Serif</button><button data-v="sans">Sans</button></div></div>
+</div>
+
+<script>
+/* ============ Relatos (originales) ============ */
+const STORIES = [
+{
+  id: "ultimo-turno",
+  title: "El último turno en la colonia roja",
+  sub: "Antes de la invasión, Marte era un sitio aburrido. Eso era lo bueno.",
+  tag: "Marte",
+  text: `
+Ilse llevaba once años cuidando los invernaderos de la colonia y nunca había visto llover. Lo más parecido era el siseo de los aspersores a las seis de la mañana, cuando el sol todavía era una moneda pálida detrás del polvo, y ella caminaba entre las hileras de lechugas con una taza de té recalentado.
+
+Le gustaba ese turno. Nadie lo quería porque era largo y silencioso, pero a Ilse el silencio le parecía un lujo. En la Tierra había vivido en un edificio donde se oía toser al vecino de tres pisos más arriba. Aquí solo se oía el zumbido de los recicladores de aire y, a veces, el crujido de la estructura al enfriarse por la noche.
+
+Esa madrugada, sin embargo, las lechugas estaban inclinadas.
+
+No marchitas: inclinadas. Todas en la misma dirección, hacia la pared norte, como si alguien hubiera abierto una ventana invisible y la luz viniera de allí. Ilse se quedó mirándolas un buen rato. Luego revisó los sensores. Temperatura normal. Humedad normal. Ninguna fuga.
+
+—Estáis raras hoy —les dijo, porque llevaba once años hablándoles y no iba a dejar de hacerlo por una tontería así.
+
+***
+
+Al mediodía mandó un informe breve a Control. La respuesta llegó tres horas después, firmada por un técnico joven que seguramente nunca había tocado una planta: «Probable variación del campo magnético local. Sin riesgo. Siga monitorizando».
+
+Ilse siguió monitorizando. Al día siguiente, las plantas de tomate también se habían girado. Al tercer día, las de pimiento. Y al cuarto, el gato de la colonia —un animal gordo y antipático llamado Comandante— se negó a entrar en el invernadero. Se quedó en el umbral, con el lomo erizado, mirando fijamente la pared norte.
+
+Más allá de esa pared no había nada. Solo roca, polvo y, a unos cuarenta kilómetros, el borde de un cráter que los geólogos llamaban, sin mucha imaginación, Cráter 7.
+
+***
+
+Esa noche, Ilse no durmió. Se sentó en el invernadero con una manta sobre los hombros y el gato, finalmente convencido, acurrucado en su regazo. Apagó las luces de crecimiento. Esperó.
+
+A las tres y diecisiete, la pared norte empezó a vibrar. Muy poco, casi nada; lo justo para que el agua de los bebederos dibujara anillos concéntricos. Las hojas de todas las plantas se estremecieron a la vez, como un público que contiene la respiración.
+
+Y luego, desde muy lejos, desde el Cráter 7, llegó un sonido que no podía llegar, porque en Marte el aire es demasiado fino para llevar sonidos tan lejos.
+
+Era un canto.
+
+Ilse no lo contó en el informe. No habría sabido cómo escribirlo. Al amanecer, cuando sonó la primera alarma de proximidad y las sirenas empezaron a aullar por toda la colonia, ella ya estaba de pie junto a la puerta del refugio, con el gato en brazos y una sola idea en la cabeza:
+
+Las plantas lo sabían. Las plantas siempre lo saben primero.`
+},
+{
+  id: "faro",
+  title: "El farero del cinturón",
+  sub: "Un hombre, una baliza y doscientos millones de kilómetros de nada.",
+  tag: "Espacio",
+  text: `
+A Tomás le dieron el puesto porque nadie más lo pidió. Mantener la Baliza 14 del cinturón de asteroides significaba pasar tres años solo en una estación del tamaño de un autobús, comprobando que una luz siguiera parpadeando para que las naves de carga no se estrellaran contra rocas del tamaño de ciudades.
+
+—¿Y qué hace uno allí todo el día? —le preguntó su hermana en la despedida.
+
+—Mirar la luz —contestó él, y ella se rió porque pensó que era una broma.
+
+No lo era. Tomás descubrió enseguida que la luz tenía personalidad. Parpadeaba cada cuatro segundos, siempre, pero había días en que parecía cansada y días en que parecía impaciente. Sabía que era una tontería. Lo apuntó igualmente en el cuaderno de bitácora, que nadie iba a leer.
+
+***
+
+El primer año pasó despacio. El segundo, más rápido. A mitad del tercero, una noche —en la estación siempre era de noche, pero Tomás seguía llamándolo así—, la radio se encendió sola.
+
+No era una nave de carga. Las naves de carga se anunciaban con un código, un número de matrícula y una voz aburrida pidiendo confirmación de rumbo. Esto era otra cosa: una serie de pulsos, cuatro segundos de separación entre uno y otro.
+
+Exactamente el ritmo de su luz.
+
+Tomás tardó una hora en entenderlo. Alguien, en algún lugar más allá de las rocas, estaba devolviéndole el parpadeo. Como cuando de niño, en la playa, encendía y apagaba una linterna hacia un barco lejano y, a veces, el barco contestaba.
+
+***
+
+No informó a nadie. Se dijo que era para no causar alarma, pero la verdad era más simple: aquello le pertenecía. Durante semanas, cada noche, cambiaba un poco el ritmo de la baliza —tres segundos, cinco, dos y dos— y cada noche, con un retraso de unos once minutos, el ritmo regresaba copiado a la perfección.
+
+Once minutos de ida y vuelta. Hizo el cálculo en el cuaderno. Quien fuera que contestaba estaba más o menos a la distancia de Marte.
+
+La última noche de su turno, antes de que llegara el relevo, Tomás dejó la baliza en su ritmo original de cuatro segundos y escribió una única línea en el cuaderno:
+
+«Si alguien contesta, sed amables. Creo que solo quiere compañía».
+
+Luego apagó la radio, recogió su bolsa y miró la luz por última vez. Esa noche, le pareció, parpadeaba contenta.`
+},
+{
+  id: "manual",
+  title: "Manual de supervivencia para principiantes",
+  sub: "Escrito por alguien que sobrevivió más por suerte que por talento.",
+  tag: "Humor",
+  text: `
+Regla número uno: si oyes un ruido extraño en un pasillo oscuro de una base marciana abandonada, no vayas a ver qué es. Ya sé que la curiosidad es humana. También lo es tener las dos piernas, y conviene conservarlas.
+
+Regla número dos: el botiquín del pasillo B siempre está vacío. Siempre. Alguien se lo llevó en la primera semana y nadie lo repuso. No pierdas el tiempo; ve directamente al del comedor, detrás de la máquina de café que tampoco funciona.
+
+***
+
+Regla número tres: los extraterrestres pequeños no son menos peligrosos que los grandes. Son peligrosos de otra manera. Los grandes te persiguen. Los pequeños se esconden en los conductos de ventilación y esperan a que te sientes a descansar. Nunca te sientes a descansar debajo de un conducto de ventilación.
+
+Regla número cuatro: la escopeta es preciosa, pero recargar lleva tiempo. Antes de entrar en una sala, cuenta los cartuchos. Si tienes que contarlos con los dedos de una mano, quizá no deberías entrar en esa sala.
+
+Regla número cinco: cada cierto tiempo aparece algo enorme. No sé por qué. Nadie sabe por qué. Simplemente ocurre, como los lunes. Cuando la tierra tiemble y las luces parpadeen, busca una columna, ponte detrás y piensa con calma. Pensar con calma es lo único que el monstruo enorme no sabe hacer.
+
+***
+
+Regla número seis: el mapa de la esquina de tu casco miente un poco. No mucho; solo lo justo para que confíes en él y luego te lleve a un callejón sin salida. Úsalo, pero mira también con tus propios ojos.
+
+Regla número siete: si sobrevives a una oleada, celébralo. En serio. Respira hondo, bebe agua, dile algo bonito a quien tengas al lado aunque sea un robot de limpieza. La siguiente oleada va a llegar de todas formas; mejor que te pille de buen humor.
+
+Y la última regla, la más importante, la que me habría gustado que alguien me dijera el primer día:
+
+De vez en cuando, deja el arma, siéntate en una butaca cómoda —lejos de los conductos de ventilación, ver regla tres— y lee algo. Lo que sea. Te sorprendería lo mucho que ayuda a seguir adelante.`
+}
+];
+
+/* ============ Preferencias ============ */
+const PREF_KEY = 'butaca_prefs', POS_KEY = 'butaca_pos', READ_KEY = 'butaca_leidos';
+const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } };
+const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+
+let prefs = Object.assign({fs:'19px', lh:'1.7', theme:'sepia', font:'serif'}, load(PREF_KEY, {}));
+let positions = load(POS_KEY, {}), readSet = load(READ_KEY, {});
+
+function applyPrefs() {
+  const r = document.documentElement;
+  r.style.setProperty('--fs', prefs.fs);
+  r.style.setProperty('--lh', prefs.lh);
+  if (prefs.theme === 'sepia') r.removeAttribute('data-theme'); else r.setAttribute('data-theme', prefs.theme);
+  document.querySelector('article .body').style.fontFamily =
+    prefs.font === 'sans' ? 'system-ui,-apple-system,"Segoe UI",sans-serif' : '';
+  document.querySelectorAll('#panel .opts').forEach(g =>
+    g.querySelectorAll('button').forEach(b => b.classList.toggle('on', prefs[g.dataset.k] === b.dataset.v)));
+}
+
+/* ============ Utilidades ============ */
+const $ = id => document.getElementById(id);
+const esc = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const words = s => s.trim().split(/\s+/).length;
+const minutes = s => Math.max(1, Math.round(words(s) / 200));
+
+/* ============ Estantería ============ */
+function renderShelf() {
+  $('list').innerHTML = STORIES.map(s => {
+    const p = positions[s.id];
+    const status = readSet[s.id] ? '<span class="done">✓ Leído</span>'
+      : (p > 0.03 ? `<span class="done">Vas por el ${Math.round(p * 100)}%</span>` : '');
+    return `<button class="card" data-id="${s.id}">
+      <h3>${esc(s.title)}</h3><p>${esc(s.sub)}</p>
+      <div class="meta ui"><span class="tag">${esc(s.tag)}</span><span>${minutes(s.text)} min de lectura</span>${status}</div>
+    </button>`;
+  }).join('');
+}
+$('list').addEventListener('click', e => { const c = e.target.closest('.card'); if (c) openStory(c.dataset.id); });
+
+/* ============ Lector ============ */
+let current = null;
+function openStory(id, fromHash) {
+  const s = STORIES.find(x => x.id === id); if (!s) return showShelf();
+  current = s;
+  $('rTitle').textContent = s.title;
+  $('rSub').textContent = s.sub;
+  $('rBody').innerHTML = s.text.trim().split(/\n\s*\n/).map(par =>
+    par.trim() === '***' ? '<p class="sep">✦ ✦ ✦</p>' : `<p>${esc(par.trim())}</p>`).join('');
+  $('shelf').classList.add('hidden'); $('reader').classList.remove('hidden'); $('back').classList.remove('hidden');
+  $('ttl').textContent = s.title;
+  const i = STORIES.indexOf(s);
+  $('next').textContent = i < STORIES.length - 1 ? 'Siguiente relato →' : 'Volver al primero ↺';
+  if (!fromHash) history.pushState(null, '', '#' + id);
+  requestAnimationFrame(() => {
+    const p = positions[id] || 0;
+    const max = document.documentElement.scrollHeight - innerHeight;
+    scrollTo(0, p > 0.97 ? 0 : p * max);
+    onScroll();
+  });
+}
+function showShelf(fromHash) {
+  current = null;
+  $('reader').classList.add('hidden'); $('shelf').classList.remove('hidden'); $('back').classList.add('hidden');
+  $('ttl').textContent = 'Lectura en butaca'; $('bar').style.width = 0;
+  if (!fromHash && location.hash) history.pushState(null, '', location.pathname + location.search);
+  renderShelf(); scrollTo(0, 0);
+}
+function route() { const id = location.hash.slice(1); id ? openStory(id, true) : showShelf(true); }
+addEventListener('popstate', route);
+
+let saveT;
+function onScroll() {
+  if (!current) return;
+  const max = document.documentElement.scrollHeight - innerHeight;
+  const p = max > 0 ? Math.min(1, scrollY / max) : 1;
+  $('bar').style.width = (p * 100) + '%';
+  clearTimeout(saveT);
+  saveT = setTimeout(() => {
+    positions[current.id] = p; save(POS_KEY, positions);
+    if (p > 0.95 && !readSet[current.id]) { readSet[current.id] = true; save(READ_KEY, readSet); }
+  }, 250);
+}
+addEventListener('scroll', onScroll, {passive: true});
+
+$('back').onclick = $('toShelf').onclick = () => showShelf();
+$('next').onclick = () => {
+  const i = STORIES.indexOf(current);
+  positions[STORIES[(i + 1) % STORIES.length].id] = 0;
+  openStory(STORIES[(i + 1) % STORIES.length].id);
+};
+
+/* ============ Panel de ajustes ============ */
+const togglePanel = on => { $('panel').classList.toggle('open', on); $('shade').classList.toggle('on', on); };
+$('opts').onclick = () => togglePanel(!$('panel').classList.contains('open'));
+$('shade').onclick = () => togglePanel(false);
+addEventListener('keydown', e => { if (e.key === 'Escape') togglePanel(false); });
+document.querySelectorAll('#panel .opts').forEach(g => g.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  // conservar la posición relativa al cambiar tamaño
+  const max0 = document.documentElement.scrollHeight - innerHeight, rel = max0 > 0 ? scrollY / max0 : 0;
+  prefs[g.dataset.k] = b.dataset.v; save(PREF_KEY, prefs); applyPrefs();
+  if (current) scrollTo(0, rel * (document.documentElement.scrollHeight - innerHeight));
+}));
+
+applyPrefs();
+route();
+</script>
+</body>
+</html>
